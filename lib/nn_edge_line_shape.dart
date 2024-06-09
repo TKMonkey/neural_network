@@ -23,7 +23,7 @@ class NNEdgeLineShape extends EdgeLineShape {
 
   void _addWeight(
       Offset startPoint, Offset endPoint, double weight, Canvas canvas) {
-    final text = "W: ${weight.toStringAsFixed(2)} ---->";
+    final text = "W: ${weight.toStringAsFixed(2)} -->";
 
     Offset getFinalTextPosition(double textWidth, double textHeight) => Offset(
           startPoint.dx + (endPoint.dx - startPoint.dx) / 2 - textWidth / 2,

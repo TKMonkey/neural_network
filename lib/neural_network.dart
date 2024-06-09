@@ -31,29 +31,37 @@ class NeuralNetwork {
     layers.add(newLayer);
   }
 
-  List<num> predict(List<num> input) {
-    assert(input.length == layers.first.length);
+  List<num> get output => layers.last.values;
 
-    layers.first.values = input;
-    layers.forEach((layer) {
+  List<num> refresh() {
+    for (var layer in layers) {
       layer.propagate();
-    });
+    }
 
     return layers.last.values;
   }
 
-  bool updateConnectionWeight(String connectionName, num newWeight) {
-    final connection = getConnectionByName(connectionName);
+  List<num> predict(List<num> input) {
+    assert(input.length == layers.first.length);
 
-    if (connection != null) {
-      connection.weight = newWeight;
-      return true;
-    } else {
-      return false;
-    }
+    layers.first.values = input;
+
+    return refresh();
   }
 
-  Connection? getConnectionByName(String name) {
+  bool updateConnectionWeight(String connectionName, num newWeight) {
+    final connection = _getConnectionByName(connectionName);
+
+    if (connection == null) {
+      return false;
+    }
+
+    connection.weight = newWeight;
+    refresh();
+    return true;
+  }
+
+  Connection? _getConnectionByName(String name) {
     final layer = layers
         .where(
           (Layer layer) => layer.getConnectionByName(name) != null,

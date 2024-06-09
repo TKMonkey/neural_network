@@ -1,14 +1,18 @@
 import 'dart:async';
+import 'dart:math';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_graph_view/flutter_graph_view.dart';
+import 'package:untitled/input_and_expected_output.dart';
+import 'package:untitled/manual_neural_network.dart';
+import 'package:untitled/platform_extension.dart';
 
+import 'combine_latest.dart';
+import 'connection_weight_slider.dart';
 import 'graphic_neural_network.dart';
-import 'neuralnetwork.dart';
-import 'nn_edge_line_shape.dart';
-import 'nn_layout.dart';
-import 'nn_vertex.dart';
+import 'neural_network.dart';
+import 'neural_network_widget.dart';
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
@@ -42,8 +46,50 @@ class MyHomePage extends StatefulWidget {
 }
 
 class _MyHomePageState extends State<MyHomePage> {
+  Edge? currentEdge;
+  late final ManualNeuralNetwork manualNN;
   late final GraphicNeuralNetwork gnn;
-  StreamController<Edge?> currentConnectionStream = StreamController();
+
+  StreamController<Edge?> currentConnectionStreamController =
+      StreamController();
+  StreamController<InputAndExpectedOutput?>
+      currentInputAndExpectedOutputStreamController = StreamController();
+  StreamController<List<num>> currentOutputStreamController =
+      StreamController();
+
+  late final Stream<Edge?> currentConnectionStream =
+      currentConnectionStreamController.stream.asBroadcastStream();
+  late final Stream<InputAndExpectedOutput?>
+      currentInputAndExpectedOutputStream =
+      currentInputAndExpectedOutputStreamController.stream.asBroadcastStream();
+  late final Stream<List<num>> currentOutputStream =
+      currentOutputStreamController.stream.asBroadcastStream();
+
+  late final Stream<num> distanceStream = CombineLatest(
+    currentInputAndExpectedOutputStream
+        .where((InputAndExpectedOutput? element) => element != null)
+        .map(
+          (InputAndExpectedOutput? element) => element!.expectedOutput,
+        ),
+    currentOutputStream,
+    (List<num> expectedOutput, List<num> currentOutput) => sqrt(
+      expectedOutput.indexed.fold(
+        0,
+        (num previousValue, (int, num) element) =>
+            previousValue +
+            pow(
+              (element.$2 - currentOutput[element.$1]),
+              2,
+            ),
+      ),
+    ),
+  );
+
+  _MyHomePageState() {
+    currentConnectionStream.listen((Edge? edge) {
+      currentEdge = edge;
+    });
+  }
 
   @override
   void initState() {
@@ -60,9 +106,25 @@ class _MyHomePageState extends State<MyHomePage> {
     inputNeuron[0].weight = 0.5;
     inputNeuron[1].weight = 5;
 
-    nn.predict([10]);
+    manualNN = ManualNeuralNetwork(nn: nn);
 
-    gnn = GraphicNeuralNetwork(nn);
+    manualNN.trainingData = [
+      InputAndExpectedOutput([10], [120]),
+    ];
+
+    manualNN.refresh();
+    currentInputAndExpectedOutputStreamController
+        .add(manualNN.currentTrainingData);
+
+    gnn = GraphicNeuralNetwork(manualNN);
+  }
+
+  Color _calculateErrorColor(num value) {
+    if (value == 0) {
+      return Colors.green;
+    } else {
+      return Color.lerp(Colors.red, Colors.green, (100 - value) / 100)!;
+    }
   }
 
   @override
@@ -73,133 +135,77 @@ class _MyHomePageState extends State<MyHomePage> {
         child: Column(
           children: [
             Flexible(
-              flex: 9,
-              child: GraphNN(
-                gnn,
-                (Edge? edge) {
-                  currentConnectionStream.sink.add(edge);
-                },
-              ),
+              flex: 1,
+              child: StreamBuilder<num>(
+                  stream: distanceStream,
+                  builder: (context, AsyncSnapshot<num> snapshot) {
+                    return Container(
+                      color: _calculateErrorColor(snapshot.data ?? 100),
+                      child: Center(
+                        child: Text(
+                          "Target: ${manualNN.currentTrainingData?.expectedOutput.fold("", (previousValue, element) => previousValue + element.toStringAsFixed(2) + ", ")}"
+                          "\n"
+                          "Prediction: ${manualNN.output.fold("", (previousValue, element) => previousValue + element.toStringAsFixed(2) + ", ")}"
+                          "\n"
+                          "Distance: ${snapshot.data?.toStringAsFixed(2)}",
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontSize: snapshot.data == 0 ? 25 : 20,
+                            fontWeight: snapshot.data == 0
+                                ? FontWeight.bold
+                                : FontWeight.normal,
+                          ),
+                        ),
+                      ),
+                    );
+                  }),
             ),
-            StreamBuilder<Edge?>(
-                stream: currentConnectionStream.stream,
+            Flexible(
+              flex: 9,
+              child: NeuralNetworkWidget(
+                  nn: gnn,
+                  setEdge: (Edge? edge) {
+                    currentConnectionStreamController.sink.add(edge);
+                  },
+                  setValue: (double value) {
+                    final innerCurrentEdge = currentEdge;
+                    if (innerCurrentEdge == null) {
+                      return;
+                    }
+
+                    gnn.setConnectionWeightByName(
+                      innerCurrentEdge.data["edgeName"],
+                      value,
+                    );
+
+                    currentOutputStreamController.sink.add(manualNN.output);
+                  }),
+            ),
+            if (isMobile)
+              StreamBuilder<Edge?>(
+                stream: currentConnectionStream,
                 builder: (BuildContext context, AsyncSnapshot<Edge?> snapshot) {
                   final Edge? edge = snapshot.data;
                   final double? weight = edge?.data['weight'].toDouble();
                   return Flexible(
-                      flex: 1,
-                      child: edge != null && weight != null
-                          ? Column(
-                              children: [
-                                Text("Weight"),
-                                Slider(
-                                  value: weight,
-                                  onChanged: (double value) {
-                                    gnn.setConnectionWeightByName(
-                                        edge.data["edgeName"], value);
-                                    currentConnectionStream.sink
-                                        .add(snapshot.data!);
-                                  },
-                                  min: -10,
-                                  max: 10,
-                                  divisions: 100,
-                                  label: weight.toStringAsFixed(2),
-                                ),
-                              ],
-                            )
-                          : Text("Select a connection"));
-                })
+                    flex: 1,
+                    child: edge != null && weight != null
+                        ? ConnectionWeightSlider(
+                            showTitle: true,
+                            edge,
+                            (value) {
+                              gnn.setConnectionWeightByName(
+                                  edge.data["edgeName"], value);
+                              currentConnectionStreamController.sink.add(edge);
+                            },
+                          )
+                        : const Text("Select a connection"),
+                  );
+                },
+              )
           ],
         ),
       ),
     ));
-  }
-}
-
-class GraphNN extends StatelessWidget {
-  final GraphicNeuralNetwork nn;
-  final Function(Edge? edge)? setEdge;
-
-  const GraphNN(this.nn, this.setEdge, {super.key});
-
-  @override
-  Widget build(BuildContext context) {
-    final data = nn.data;
-
-    return FlutterGraphWidget(
-      data: data,
-      algorithm: NNLayout(
-        spaceBetweenLayers: 150,
-        decorators: [],
-      ),
-      convertor: MapConvertor(),
-      options: Options()
-        ..enableHit = false
-        ..panelDelay = Duration.zero
-        ..showText = true
-        ..textGetter = (vertex) {
-          return "";
-        }
-        ..graphStyle = (GraphStyle()
-          // tagColor is prior to tagColorByIndex. use vertex.tags to get color
-          ..tagColor = {'tag8': Colors.orangeAccent.shade200}
-          ..tagColorByIndex = [
-            Colors.red.shade200,
-            Colors.orange.shade200,
-            Colors.yellow.shade200,
-            Colors.green.shade200,
-            Colors.blue.shade200,
-            Colors.blueAccent.shade200,
-            Colors.purple.shade200,
-            Colors.pink.shade200,
-            Colors.blueGrey.shade200,
-            Colors.deepOrange.shade200,
-          ])
-        ..useLegend = true // default true
-        ..edgePanelBuilder = edgePanelBuilder
-        ..vertexPanelBuilder = vertexPanelBuilder
-        ..edgeShape = NNEdgeLineShape() // default is EdgeLineShape.
-        ..vertexShape = NNVertex() // default is VertexCircleShape.
-        ..backgroundBuilder =
-            (BuildContext context) => Container(color: Colors.white),
-    );
-  }
-
-  Widget edgePanelBuilder(Edge edge, Viewfinder viewfinder) {
-    var c = viewfinder.localToGlobal(edge.position);
-    setEdge?.call(edge);
-
-    return const SizedBox(
-      width: 0,
-      height: 0,
-    );
-  }
-
-  Widget vertexPanelBuilder(hoverVertex, Viewfinder viewfinder) {
-    var c = viewfinder.localToGlobal(hoverVertex.cpn!.position);
-    return Stack(
-      children: [
-        Positioned(
-          left: c.x + hoverVertex.radius + 5,
-          top: c.y - 20,
-          child: SizedBox(
-            width: 120,
-            child: ColoredBox(
-              color: Colors.grey.shade900.withAlpha(200),
-              child: ListTile(
-                title: Text(
-                  "Value: ${hoverVertex.data["currentValue"]}",
-                  style: const TextStyle(color: Colors.white),
-                ),
-                subtitle: const Text(
-                  "",
-                  style: TextStyle(color: Colors.white),
-                ),
-              ),
-            ),
-          ),
-        )
-      ],
-    );
   }
 }

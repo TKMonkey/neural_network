@@ -46,9 +46,6 @@ class Neuron {
         _receiveForwardPropagationAcc, _receiveForwardPropagationCounter);
     _receiveForwardPropagationAcc = 0;
     _receiveForwardPropagationCounter = 0;
-
-    print(
-        "El valor al final de la propagación en la neurona $fullName es: $_value");
   }
 
   void receiveForwardPropagation(num value) {
@@ -60,8 +57,7 @@ class Neuron {
 
   void propagate() {
     assert(!_isReceivingForwardPropagation);
-    print(
-        "Propagando en la neurona $fullName con valor $_value. La cantidad de conexiones es: ${_nextLayerConnections.length}");
+
     for (var connection in _nextLayerConnections) {
       connection.propagate(_value);
     }
