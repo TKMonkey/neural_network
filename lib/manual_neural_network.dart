@@ -17,6 +17,8 @@ class ManualNeuralNetwork implements NeuralNetwork {
   set trainingData(List<InputAndExpectedOutput> trainingData) {
     _trainingData = trainingData;
     _currentTrainingDataIndex = trainingData.isEmpty ? -1 : 0;
+
+    _nn.predict(trainingData.first.input);
   }
 
   InputAndExpectedOutput? get currentTrainingData =>
@@ -28,20 +30,6 @@ class ManualNeuralNetwork implements NeuralNetwork {
       _currentTrainingDataIndex < _trainingData.length - 1;
 
   bool get hasPreviousTrainingData => _currentTrainingDataIndex > 0;
-
-  void nextTrainingData() {
-    if (_currentTrainingDataIndex < _trainingData.length - 1) {
-      _currentTrainingDataIndex++;
-    }
-
-    final inputAndExpectedOutput = currentTrainingData;
-    if (inputAndExpectedOutput == null) {
-      return;
-    }
-
-    final input = inputAndExpectedOutput.input;
-    _nn.predict(input);
-  }
 
   @override
   void addInputLayer(int neuronAmount,
@@ -75,4 +63,32 @@ class ManualNeuralNetwork implements NeuralNetwork {
 
   @override
   List<num> get output => _nn.output;
+
+  void nextTrainingData() {
+    if (hasNextTrainingData) {
+      _currentTrainingDataIndex++;
+    }
+
+    final inputAndExpectedOutput = currentTrainingData;
+    if (inputAndExpectedOutput == null) {
+      return;
+    }
+
+    final input = inputAndExpectedOutput.input;
+    _nn.predict(input);
+  }
+
+  void previousTrainingData() {
+    if (hasPreviousTrainingData) {
+      _currentTrainingDataIndex--;
+    }
+
+    final inputAndExpectedOutput = currentTrainingData;
+    if (inputAndExpectedOutput == null) {
+      return;
+    }
+
+    final input = inputAndExpectedOutput.input;
+    _nn.predict(input);
+  }
 }
