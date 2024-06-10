@@ -10,6 +10,7 @@ import 'package:untitled/platform_extension.dart';
 
 import 'combine_latest.dart';
 import 'connection_weight_slider.dart';
+import 'distance_widget.dart';
 import 'graphic_neural_network.dart';
 import 'neural_network.dart';
 import 'neural_network_widget.dart';
@@ -72,17 +73,21 @@ class _MyHomePageState extends State<MyHomePage> {
           (InputAndExpectedOutput? element) => element!.expectedOutput,
         ),
     currentOutputStream,
-    (List<num> expectedOutput, List<num> currentOutput) => sqrt(
-      expectedOutput.indexed.fold(
-        0,
-        (num previousValue, (int, num) element) =>
-            previousValue +
-            pow(
-              (element.$2 - currentOutput[element.$1]),
-              2,
-            ),
-      ),
-    ),
+    (List<num> expectedOutput, List<num> currentOutput) {
+      final distance = sqrt(
+        expectedOutput.indexed.fold(
+          0,
+          (num previousValue, (int, num) element) =>
+              previousValue +
+              pow(
+                (element.$2 - currentOutput[element.$1]),
+                2,
+              ),
+        ),
+      );
+
+      return double.parse(distance.toStringAsFixed(2));
+    },
   );
 
   _MyHomePageState() {
@@ -100,112 +105,96 @@ class _MyHomePageState extends State<MyHomePage> {
     nn.addLayer(2, (acc, counter) => acc, layerName: "1");
     nn.addOutputLayer(1, (acc, counter) => acc);
 
-    final inputLayer = nn.layers.first;
-    final inputNeuron = inputLayer[0];
-
-    inputNeuron[0].weight = 0.5;
-    inputNeuron[1].weight = 5;
-
     manualNN = ManualNeuralNetwork(nn: nn);
 
     manualNN.trainingData = [
-      InputAndExpectedOutput([10], [120]),
+      InputAndExpectedOutput([2], [120]),
+      InputAndExpectedOutput([4], [240]),
+      InputAndExpectedOutput([8], [240]),
     ];
 
-    manualNN.refresh();
-    currentInputAndExpectedOutputStreamController
-        .add(manualNN.currentTrainingData);
-
     gnn = GraphicNeuralNetwork(manualNN);
+
+    _refreshData();
   }
 
-  Color _calculateErrorColor(num value) {
-    if (value == 0) {
-      return Colors.green;
-    } else {
-      return Color.lerp(Colors.red, Colors.green, (100 - value) / 100)!;
-    }
+  void _refreshData() {
+    gnn.refresh();
+    currentInputAndExpectedOutputStreamController
+        .add(manualNN.currentTrainingData);
+    currentOutputStreamController.sink.add(manualNN.output);
   }
 
   @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-        body: SafeArea(
-      child: Center(
-        child: Column(
-          children: [
-            Flexible(
-              flex: 1,
-              child: StreamBuilder<num>(
-                  stream: distanceStream,
-                  builder: (context, AsyncSnapshot<num> snapshot) {
-                    return Container(
-                      color: _calculateErrorColor(snapshot.data ?? 100),
-                      child: Center(
-                        child: Text(
-                          "Target: ${manualNN.currentTrainingData?.expectedOutput.fold("", (previousValue, element) => previousValue + element.toStringAsFixed(2) + ", ")}"
-                          "\n"
-                          "Prediction: ${manualNN.output.fold("", (previousValue, element) => previousValue + element.toStringAsFixed(2) + ", ")}"
-                          "\n"
-                          "Distance: ${snapshot.data?.toStringAsFixed(2)}",
-                          style: TextStyle(
-                            color: Colors.white,
-                            fontSize: snapshot.data == 0 ? 25 : 20,
-                            fontWeight: snapshot.data == 0
-                                ? FontWeight.bold
-                                : FontWeight.normal,
-                          ),
-                        ),
-                      ),
-                    );
-                  }),
-            ),
-            Flexible(
-              flex: 9,
-              child: NeuralNetworkWidget(
-                  nn: gnn,
-                  setEdge: (Edge? edge) {
-                    currentConnectionStreamController.sink.add(edge);
+  Widget build(BuildContext context) => Scaffold(
+          body: SafeArea(
+        child: Center(
+          child: Column(
+            children: [
+              Flexible(
+                flex: 1,
+                child: DistanceWidget(
+                  distanceStream: distanceStream,
+                  manualNN: manualNN,
+                  previousClickListener: () {
+                    manualNN.previousTrainingData();
+
+                    _refreshData();
                   },
-                  setValue: (double value) {
-                    final innerCurrentEdge = currentEdge;
-                    if (innerCurrentEdge == null) {
-                      return;
-                    }
+                  nextClickListener: () {
+                    manualNN.nextTrainingData();
 
-                    gnn.setConnectionWeightByName(
-                      innerCurrentEdge.data["edgeName"],
-                      value,
+                    _refreshData();
+                  },
+                ),
+              ),
+              Flexible(
+                flex: 9,
+                child: NeuralNetworkWidget(
+                    nn: gnn,
+                    setEdge: (Edge? edge) {
+                      currentConnectionStreamController.sink.add(edge);
+                    },
+                    setValue: (double value) {
+                      final innerCurrentEdge = currentEdge;
+                      if (innerCurrentEdge == null) {
+                        return;
+                      }
+
+                      gnn.setConnectionWeightByName(
+                        innerCurrentEdge.data["edgeName"],
+                        value,
+                      );
+
+                      currentOutputStreamController.sink.add(manualNN.output);
+                    }),
+              ),
+              if (isMobile)
+                StreamBuilder<Edge?>(
+                  stream: currentConnectionStream,
+                  builder:
+                      (BuildContext context, AsyncSnapshot<Edge?> snapshot) {
+                    final Edge? edge = snapshot.data;
+                    final double? weight = edge?.data['weight'].toDouble();
+                    return Flexible(
+                      flex: 1,
+                      child: edge != null && weight != null
+                          ? ConnectionWeightSlider(
+                              showTitle: true,
+                              edge,
+                              (value) {
+                                gnn.setConnectionWeightByName(
+                                    edge.data["edgeName"], value);
+                                currentConnectionStreamController.sink
+                                    .add(edge);
+                              },
+                            )
+                          : const Text("Select a connection"),
                     );
-
-                    currentOutputStreamController.sink.add(manualNN.output);
-                  }),
-            ),
-            if (isMobile)
-              StreamBuilder<Edge?>(
-                stream: currentConnectionStream,
-                builder: (BuildContext context, AsyncSnapshot<Edge?> snapshot) {
-                  final Edge? edge = snapshot.data;
-                  final double? weight = edge?.data['weight'].toDouble();
-                  return Flexible(
-                    flex: 1,
-                    child: edge != null && weight != null
-                        ? ConnectionWeightSlider(
-                            showTitle: true,
-                            edge,
-                            (value) {
-                              gnn.setConnectionWeightByName(
-                                  edge.data["edgeName"], value);
-                              currentConnectionStreamController.sink.add(edge);
-                            },
-                          )
-                        : const Text("Select a connection"),
-                  );
-                },
-              )
-          ],
+                  },
+                )
+            ],
+          ),
         ),
-      ),
-    ));
-  }
+      ));
 }

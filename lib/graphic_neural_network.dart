@@ -17,6 +17,11 @@ class GraphicNeuralNetwork {
         "edges": _edges.values.toList(),
       };
 
+  void refresh() {
+    _neuralNetwork.refresh();
+    _updateVertexesAndEdges();
+  }
+
   void setConnectionWeightByName(String connectionName, num newWeight) {
     _neuralNetwork.updateConnectionWeight(connectionName, newWeight);
 
