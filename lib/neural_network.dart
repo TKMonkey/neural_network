@@ -5,23 +5,24 @@ class NeuralNetwork {
   final List<Layer> layers = List.empty(growable: true);
 
   void addInputLayer(int neuronAmount,
-          Function(num acc, int counter) activationFunction) =>
+          num Function(num acc, int counter)? activationFunction) =>
       addLayer(neuronAmount, activationFunction,
           layerName: "Input", addBias: false);
 
   void addOutputLayer(int neuronAmount,
-          Function(num acc, int counter) activationFunction) =>
+          num Function(num acc, int counter)? activationFunction) =>
       addLayer(neuronAmount, activationFunction,
           layerName: "Output", addBias: false);
 
   void addLayer(
-      int neuronAmount, Function(num acc, int counter) activationFunction,
+      int neuronAmount, num Function(num acc, int counter)? activationFunction,
       {String layerName = "", bool addBias = true}) {
     final Layer newLayer = Layer(
       neuronAmount,
       null,
       layerName: layerName,
       addBias: addBias,
+      activationFunction: activationFunction,
     );
 
     if (layers.isNotEmpty) {
@@ -34,10 +35,9 @@ class NeuralNetwork {
   List<num> get output => layers.last.values;
 
   List<num> refresh() {
-    for (var layer in layers) {
+    for (Layer layer in layers) {
       layer.propagate();
     }
-
     return layers.last.values;
   }
 
@@ -47,6 +47,18 @@ class NeuralNetwork {
     layers.first.values = input;
 
     return refresh();
+  }
+
+  List<num> eval(List<num> input) {
+    final originalValues = layers.first.values;
+
+    final result = predict(input);
+
+    layers.first.values = originalValues;
+
+    predict(layers.first.values);
+
+    return result;
   }
 
   bool updateConnectionWeight(String connectionName, num newWeight) {

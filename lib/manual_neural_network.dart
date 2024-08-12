@@ -33,19 +33,19 @@ class ManualNeuralNetwork implements NeuralNetwork {
 
   @override
   void addInputLayer(int neuronAmount,
-          Function(num acc, int counter) activationFunction) =>
+          num Function(num acc, int counter)? activationFunction) =>
       _nn.addInputLayer(neuronAmount, activationFunction);
 
   @override
-  void addLayer(
-          int neuronAmount, Function(num acc, int counter) activationFunction,
+  void addLayer(int neuronAmount,
+          num Function(num acc, int counter)? activationFunction,
           {String layerName = "", bool addBias = true}) =>
       _nn.addLayer(neuronAmount, activationFunction,
           layerName: layerName, addBias: addBias);
 
   @override
   void addOutputLayer(int neuronAmount,
-          Function(num acc, int counter) activationFunction) =>
+          num Function(num acc, int counter)? activationFunction) =>
       _nn.addOutputLayer(neuronAmount, activationFunction);
 
   @override
@@ -91,4 +91,7 @@ class ManualNeuralNetwork implements NeuralNetwork {
     final input = inputAndExpectedOutput.input;
     _nn.predict(input);
   }
+
+  @override
+  List<num> eval(List<num> input) => _nn.eval(input);
 }

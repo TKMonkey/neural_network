@@ -73,7 +73,7 @@ class Neuron {
 
   operator [](int index) => _nextLayerConnections[index];
 
-  get fullName => ('L:' + _layerName + ' N:' + _neuronName).trim();
+  get fullName => ('L:$_layerName N:$_neuronName').trim();
 
   get nameInsideLayer => (_neuronName).trim();
 

@@ -4,6 +4,7 @@ import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_graph_view/flutter_graph_view.dart';
+import 'package:syncfusion_flutter_charts/charts.dart';
 import 'package:untitled/input_and_expected_output.dart';
 import 'package:untitled/manual_neural_network.dart';
 import 'package:untitled/platform_extension.dart';
@@ -14,6 +15,13 @@ import 'distance_widget.dart';
 import 'graphic_neural_network.dart';
 import 'neural_network.dart';
 import 'neural_network_widget.dart';
+
+class Point {
+  final num x;
+  final num y;
+
+  Point(this.x, this.y);
+}
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
@@ -51,6 +59,9 @@ class _MyHomePageState extends State<MyHomePage> {
   late final ManualNeuralNetwork manualNN;
   late final GraphicNeuralNetwork gnn;
 
+  Stream<List<Point>> get currentPredictionPoints =>
+      currentOutputStream.map((List<num> event) =>
+          _buildData((List<num> input) => manualNN.eval(input).first));
   StreamController<Edge?> currentConnectionStreamController =
       StreamController();
   StreamController<InputAndExpectedOutput?>
@@ -96,21 +107,34 @@ class _MyHomePageState extends State<MyHomePage> {
     });
   }
 
+  num sigmoid(num x) {
+    return 1 / (1 + exp(-x));
+  }
+
+  num relu(num x) {
+    return max(0, x);
+  }
+
   @override
   void initState() {
     super.initState();
 
     final NeuralNetwork nn = NeuralNetwork();
-    nn.addInputLayer(1, (acc, counter) => acc);
-    nn.addLayer(2, (acc, counter) => acc, layerName: "1");
+    nn.addInputLayer(1, (acc, counter) => relu(acc));
+    nn.addLayer(2, (acc, counter) => relu(acc), layerName: "1");
     nn.addOutputLayer(1, (acc, counter) => acc);
 
     manualNN = ManualNeuralNetwork(nn: nn);
 
     manualNN.trainingData = [
-      InputAndExpectedOutput([2], [120]),
-      InputAndExpectedOutput([4], [240]),
-      InputAndExpectedOutput([8], [240]),
+      /*
+      * Left to right top to bottom
+      * Good weights: 1, 0.5, 1, 1, 1
+      * Good weights only for first example: 1, 1, 0.44, 1, 0.62
+      * */
+      InputAndExpectedOutput([2], [3.5]),
+      InputAndExpectedOutput([4], [6.5]),
+      InputAndExpectedOutput([8], [12.5]),
     ];
 
     gnn = GraphicNeuralNetwork(manualNN);
@@ -150,24 +174,53 @@ class _MyHomePageState extends State<MyHomePage> {
               ),
               Flexible(
                 flex: 9,
-                child: NeuralNetworkWidget(
-                    nn: gnn,
-                    setEdge: (Edge? edge) {
-                      currentConnectionStreamController.sink.add(edge);
-                    },
-                    setValue: (double value) {
-                      final innerCurrentEdge = currentEdge;
-                      if (innerCurrentEdge == null) {
-                        return;
-                      }
+                child: Row(
+                  children: [
+                    Flexible(
+                      flex: 3,
+                      child: NeuralNetworkWidget(
+                          nn: gnn,
+                          setEdge: (Edge? edge) {
+                            currentConnectionStreamController.sink.add(edge);
+                          },
+                          setValue: (double value) {
+                            final innerCurrentEdge = currentEdge;
+                            if (innerCurrentEdge == null) {
+                              return;
+                            }
 
-                      gnn.setConnectionWeightByName(
-                        innerCurrentEdge.data["edgeName"],
-                        value,
-                      );
+                            gnn.setConnectionWeightByName(
+                              innerCurrentEdge.data["edgeName"],
+                              value,
+                            );
 
-                      currentOutputStreamController.sink.add(manualNN.output);
-                    }),
+                            currentOutputStreamController.sink
+                                .add(manualNN.output);
+                          }),
+                    ),
+                    Flexible(
+                        flex: 2,
+                        child: Container(
+                          color: Colors.white,
+                          child: StreamBuilder<List<Point>>(
+                            stream: currentPredictionPoints,
+                            builder: (BuildContext context,
+                                    AsyncSnapshot<List<Point>> snapshot) =>
+                                snapshot.hasData
+                                    ? SfCartesianChart(
+                                        series: <CartesianSeries>[
+                                            SplineSeries<Point, num>(
+                                                dataSource: snapshot.data!,
+                                                xValueMapper: (Point data, _) =>
+                                                    data.x,
+                                                yValueMapper: (Point data, _) =>
+                                                    data.y)
+                                          ])
+                                    : const CircularProgressIndicator(),
+                          ),
+                        ))
+                  ],
+                ),
               ),
               if (isMobile)
                 StreamBuilder<Edge?>(
@@ -197,4 +250,12 @@ class _MyHomePageState extends State<MyHomePage> {
           ),
         ),
       ));
+}
+
+List<Point> _buildData(num Function(List<num> input) eval) {
+  final List<Point> data = <Point>[];
+  for (int i = 0; i <= 10; i++) {
+    data.add(Point(i.toDouble(), eval([i.toDouble()])));
+  }
+  return data;
 }

@@ -2,28 +2,39 @@ import 'connection.dart';
 import 'neuron.dart';
 
 class Layer {
-  int? _seed;
-  bool addBias;
+  final int? _seed;
   Layer? _nextLayer;
-  String _layerName = "";
-  Map<String, Connection> _connections = Map();
-  List<Neuron> _neurons = List.empty(growable: false);
+  final bool addBias;
+  final String _layerName;
+  late final List<Neuron> _neurons;
+  final Map<String, Connection> _connections = {};
+  final num Function(num value, int counter) _activationFunction;
+
+  static num _defaultActivationFunction(num value, int counter) => value;
 
   Layer(
     int neuronQuantity,
     int? seed, {
     layerName = "",
     this.addBias = true,
+    num Function(num value, int counter)? activationFunction,
   })  : _seed = seed,
-        _layerName = layerName {
+        _layerName = layerName,
+        _activationFunction = activationFunction ?? _defaultActivationFunction {
     _initializeNeurons(neuronQuantity);
   }
 
-  Layer.withNextLayer(int neuronQuantity, Layer nextLayer, int? seed,
-      {layerName = "", this.addBias = true})
-      : _seed = seed,
+  Layer.withNextLayer(
+    int neuronQuantity,
+    Layer nextLayer,
+    int? seed, {
+    layerName = "",
+    this.addBias = true,
+    num Function(num value, int counter)? activationFunction,
+  })  : _seed = seed,
         _layerName = layerName,
-        _nextLayer = nextLayer {
+        _nextLayer = nextLayer,
+        _activationFunction = activationFunction ?? _defaultActivationFunction {
     _initializeNeurons(neuronQuantity);
 
     _initializeConnections();
@@ -60,8 +71,6 @@ class Layer {
     });
   }
 
-  num _activationFunction(num value, int acc) => value;
-
   void _initializeNeurons(int neuronQuantity) {
     final maxNeurons = neuronQuantity + (addBias ? 1 : 0);
     final List<Neuron> neurons = List.generate(
@@ -89,7 +98,7 @@ class Layer {
           .where((element) => !element.isBias)
           .forEach((nextLayerNonBiasNeuron) {
         final newConnection =
-            Connection(myNeuron, nextLayerNonBiasNeuron, _seed, 1);
+            Connection(myNeuron, nextLayerNonBiasNeuron, _seed);
         _connections[newConnection.name] = newConnection;
         myNeuron.addConnection(newConnection);
         nextLayerNonBiasNeuron.addConnection(newConnection);

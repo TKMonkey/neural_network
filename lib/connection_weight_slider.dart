@@ -24,7 +24,7 @@ class _ConnectionWeightSliderState extends State<ConnectionWeightSlider> {
   @override
   Widget build(BuildContext context) => Column(
         children: [
-          if (widget.showTitle) Text("Weight"),
+          if (widget.showTitle) const Text("Weight"),
           Slider(
             value: internalWeight,
             onChanged: (value) {
@@ -33,8 +33,8 @@ class _ConnectionWeightSliderState extends State<ConnectionWeightSlider> {
                 widget.onChanged?.call(value);
               });
             },
-            min: -10,
-            max: 10,
+            min: -1,
+            max: 1,
             divisions: 100,
             label: widget.showTitle ? internalWeight.toStringAsFixed(2) : null,
           ),
