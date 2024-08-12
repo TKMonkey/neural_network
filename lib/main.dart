@@ -4,10 +4,10 @@ import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_graph_view/flutter_graph_view.dart';
+import 'package:neural_network/input_and_expected_output.dart';
+import 'package:neural_network/manual_neural_network.dart';
+import 'package:neural_network/platform_extension.dart';
 import 'package:syncfusion_flutter_charts/charts.dart';
-import 'package:untitled/input_and_expected_output.dart';
-import 'package:untitled/manual_neural_network.dart';
-import 'package:untitled/platform_extension.dart';
 
 import 'combine_latest.dart';
 import 'connection_weight_slider.dart';

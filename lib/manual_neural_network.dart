@@ -1,4 +1,4 @@
-import 'package:untitled/neural_network.dart';
+import 'package:neural_network/neural_network.dart';
 
 import 'input_and_expected_output.dart';
 import 'layer.dart';
