@@ -1,3 +1,5 @@
-import 'dart:io';
+import 'package:flutter/foundation.dart';
 
-bool get isMobile => Platform.isAndroid || Platform.isIOS;
+bool get isMobile =>
+    defaultTargetPlatform == TargetPlatform.android ||
+    defaultTargetPlatform == TargetPlatform.android;
